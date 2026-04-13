@@ -8,5 +8,3 @@ Remnant
 C:\Users\user\AppData\Local\Remnant
 OPP
 C:\Users\user\AppData\Local\OPP
-Man Of Medan
-C:\Users\user\AppData\Local\ManOfMedan
