@@ -1,20 +1,24 @@
 import re
 from pathlib import Path
+from traceback import print_tb
+
 import yaml
 from pydantic import BaseModel, Field
 
 cfg_path = Path(__file__).parent / "cfg.yaml"
 home_path = Path.home()
 
-def game_name (path):
+def game_name(path):
     path = Path(path)
-    while 'save' in path.parent.name.lower():
+    if path.is_file():
+        path = path.parent
+    while 'save' in path.name.lower():
         if path.parent.name != 'Users':
             path = path.parent
         else:
             s = 1
             break
-    name = re.sub(r'[_\-\s]', '', str(path))
+    name = re.sub(r'[_\-\s]', '', str(path.name))
     return re.sub(r'([a-z])([A-Z0-9])', r'\1 \2', name)
 
 class Game_data(BaseModel):
@@ -42,14 +46,52 @@ def save_cfg(cfg_obj):
     with open(cfg_path, "w", encoding= "utf-8") as f:
         yaml.dump(model_cfg, f)
 
-def game_init ():
+def game_init():
     data = load_cfg()
     x = list(home_path.glob("**/*.sav"))
     seen_id = {i.game_id for i in data.games}
     for i in x:
-        if hash(str(i.parent)) not in seen_id:
+        if hash(str(i.parent)) not in seen_id and not list(i.parent.glob("*.vdf")):
             new_game = Game_data(game_path= str(i.parent), name= game_name(i.parent))
             seen_id.add(new_game.game_id)
             data.games.append(new_game)
     save_cfg(data)
+
+def game_add():
+    print("Enter the path to the save files of your game")
+    path = input()
+    name = game_name(path)
+    new_game = Game_data(game_path= path, name= name)
+    data = load_cfg()
+    data.games.append(new_game)
+    save_cfg(data)
+
+def game_del():
+    data = load_cfg()
+    print("Enter the name of the game you want to delete")
+    name = input()
+    cnt = len(data.games)
+    data.games = [game for game in data.games if game.name.lower() != name.lower()]
+    if cnt > len(data.games):
+        save_cfg(data)
+        print("Game successfully deleted")
+    else:
+        print("Game wasn't found")
+
+def menu():
+    print("Hello in game save backup!")
+    while(True):
+        print("Choose your action\n1. Search and add the games from your PC\n2. Add your game\n3. Delete saved game\n4. Close")
+        inp = input()
+        if inp == "1":
+            game_init()
+        if inp == "2":
+            game_add()
+        if inp == "3":
+            game_del()
+        if inp == "4":
+            break
+
+menu()
+
 
