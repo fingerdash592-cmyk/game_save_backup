@@ -1,78 +1,55 @@
 import re
 from pathlib import Path
+import yaml
+from pydantic import BaseModel, Field
 
-cfgpath = Path(__file__).parent / "cfg.txt"
-p = Path("C:\\Users\\user")
+cfg_path = Path(__file__).parent / "cfg.yaml"
+home_path = Path.home()
 
-
-def game_name (name):
-    name = name.replace('_', ' ').replace('-', ' ')
+def game_name (path):
+    path = Path(path)
+    while 'save' in path.parent.name.lower():
+        if path.parent.name != 'Users':
+            path = path.parent
+        else:
+            s = 1
+            break
+    name = re.sub(r'[_\-\s]', '', str(path))
     return re.sub(r'([a-z])([A-Z0-9])', r'\1 \2', name)
 
-def start():
-    x = list(p.glob('**/*.sav'))
-    dic = {}
+class Game_data(BaseModel):
+    game_path : str
+    name : str
+
+    @property
+    def game_id(self) -> int:
+        game_id = hash(self.game_path)
+        return game_id
+
+class Games_cfg(BaseModel):
+    games : list[Game_data] = Field(default_factory = list)
+
+def load_cfg():
+    if cfg_path.exists():
+        with open(cfg_path, "r", encoding= "utf-8") as f:
+            raw = yaml.safe_load(f)
+        if raw != None:
+            return Games_cfg.model_validate(raw)
+    return Games_cfg()
+
+def save_cfg(cfg_obj):
+    model_cfg = cfg_obj.model_dump()
+    with open(cfg_path, "w", encoding= "utf-8") as f:
+        yaml.dump(model_cfg, f)
+
+def game_init ():
+    data = load_cfg()
+    x = list(home_path.glob("**/*.sav"))
+    seen_id = {i.game_id for i in data.games}
     for i in x:
-        s = 0
-        while 'save' in i.parent.name.lower():
-            if i.parent.name != 'Users':
-                i = i.parent
-            else:
-                s = 1
-                break
-        if not s:
-            dic[game_name(i.parent.name)] = i.parent
-    with open(cfgpath, 'w', encoding="utf-8") as f:
-        for i in dic.keys():
-            f.write(i + "\n" + str(dic[i]) + "\n")
+        if hash(str(i.parent)) not in seen_id:
+            new_game = Game_data(game_path= str(i.parent), name= game_name(i.parent))
+            seen_id.add(new_game.game_id)
+            data.games.append(new_game)
+    save_cfg(data)
 
-def add_game():
-    print("Enter the name of the game you want to add:")
-    name = game_name(input().replace(" ", ""))
-    print("Enter the path where the .sav files are saved:")
-    way = input().replace(" ", "")
-
-    with open(cfgpath, 'a', encoding="utf-8") as f:
-            f.write("\n" + name + "\n" + way, )
-
-def delete_game():
-    if not cfgpath.exists():
-        print("Файл настроек не найден.")
-        return
-    print("Enter the name of the game you want to delete:")
-    name = game_name(input().replace(" ", ""))
-    indir = False
-    skip = False
-    new_data = []
-    for i in cfgpath.read_text().splitlines():
-        if skip:
-            skip = False
-            continue
-        if i == name:
-            skip = True
-            indir = True
-            continue
-        new_data.append(i)
-    if indir:
-        res = [i for i in new_data]
-        cfgpath.write_text("\n".join (res), encoding="utf-8")
-        print ("game successfully deleted")
-    else:
-        print("game is not in cfg.txt")
-
-def menu ():
-    while (True):
-        print("Hello in Game Save Backup:\nChoose your action\n1. Initialize your games\n2. Add game to config \n3. Delete game from config\n4. Close program")
-        act = input()
-        if act == '1':
-            start()
-        elif act == '2':
-            add_game()
-        elif act == '3':
-            delete_game()
-        elif act == '4':
-            break
-        else:
-            print("Where is no action like that")
-
-menu()
