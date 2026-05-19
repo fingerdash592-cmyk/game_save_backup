@@ -1,11 +1,9 @@
 import re
 from pathlib import Path
-from traceback import print_tb
-
-import yaml
+import json
 from pydantic import BaseModel, Field
 
-cfg_path = Path(__file__).parent / "cfg.yaml"
+cfg_path = Path(__file__).parent / "cfg.json"
 home_path = Path.home()
 
 def game_name(path):
@@ -16,7 +14,6 @@ def game_name(path):
         if path.parent.name != 'Users':
             path = path.parent
         else:
-            s = 1
             break
     name = re.sub(r'[_\-\s]', '', str(path.name))
     return re.sub(r'([a-z])([A-Z0-9])', r'\1 \2', name)
@@ -36,7 +33,7 @@ class Games_cfg(BaseModel):
 def load_cfg():
     if cfg_path.exists():
         with open(cfg_path, "r", encoding= "utf-8") as f:
-            raw = yaml.safe_load(f)
+            raw = json.load(f)
         if raw != None:
             return Games_cfg.model_validate(raw)
     return Games_cfg()
@@ -44,7 +41,7 @@ def load_cfg():
 def save_cfg(cfg_obj):
     model_cfg = cfg_obj.model_dump()
     with open(cfg_path, "w", encoding= "utf-8") as f:
-        yaml.dump(model_cfg, f)
+        json.dump(model_cfg, f)
 
 def game_init():
     data = load_cfg()
@@ -59,7 +56,10 @@ def game_init():
 
 def game_add():
     print("Enter the path to the save files of your game")
-    path = input()
+    path = Path(input())
+    if not path.exists():
+        print("Path does not exist")
+        return 1
     name = game_name(path)
     new_game = Game_data(game_path= path, name= name)
     data = load_cfg()

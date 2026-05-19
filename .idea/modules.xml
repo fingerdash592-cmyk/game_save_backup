@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/game-save-backup.iml" filepath="$PROJECT_DIR$/.idea/game-save-backup.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/game_save_backup.iml" filepath="$PROJECT_DIR$/.idea/game_save_backup.iml" />
     </modules>
   </component>
 </project>
