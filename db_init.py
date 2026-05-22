@@ -40,7 +40,7 @@ with psycopg.connect("dbname=game_saves user=postgres password=adm") as conn:
                 "primary key (md5_hash, backup_id));"
                 )
 
-        cur.execute (req)
+        cur.execute_script(req)
 
 
 
