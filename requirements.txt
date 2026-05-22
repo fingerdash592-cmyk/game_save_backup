@@ -1,3 +1,5 @@
 pyyaml
 pathlib
 pydantic
+psycopg
+psycopg[binary]
