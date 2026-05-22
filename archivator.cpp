@@ -1,85 +1,88 @@
 #include <iostream>
 #include <fstream>
-#include "nlohmann/json.hpp"
+#include <filesystem>
+#include <vector>
+#include <string>
+#include <cstring>
 #include <zip.h>
+
 #define MD5_IMPLEMENTATION
 #include "md5.h"
+
 using namespace std;
-using namespace filesystem;
-#define cfg_path "..\\cfg.json"
-using json = nlohmann::json;
-struct game_data{
-    string game_path;
-    string name;
+using namespace std::filesystem;
+
+struct PackagedFile {
+    char md5[33];
+    uint8_t* zip_data;
+    size_t zip_size;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(game_data, name, game_path)
-
-struct Games_cfg{
-    vector <game_data> games;
-};
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Games_cfg, games)
-
-bool save_cfg(Games_cfg Games){
-        ofstream ofs (cfg_path);
-        if (!ofs.is_open()){
-                cout << "Error of opening cfg file";
-                return false;
-        }
-        json j = Games;
-        ofs << j.dump(2);
-        ofs.close();
-        return true;
-}
-
-Games_cfg load_cfg(){
-        std::ifstream ifs(cfg_path);
-        if (ifs.is_open()){
-                json j;
-                ifs >> j;
-                ifs.close();
-                return Games_cfg(j);
-        }
-        else{  cout << "Error of opening cfg file";  return Games_cfg();  }
-
-}
 
 string get_file_md5(const path& filepath) {
-        std::ifstream file(filepath, std::ios::binary);
-        if (!file.is_open()) return "";
+    std::ifstream file(filepath, std::ios::binary);
+    if (!file.is_open()) return "";
 
-        MD5 md5;
-        char buffer[8192];
+    MD5 md5;
+    char buffer[8192];
 
-        while (file.read(buffer, sizeof(buffer))) {
-                md5.update(reinterpret_cast<uint8_t*>(buffer), file.gcount());
-        }
-        if (file.gcount() > 0) {
-                md5.update(reinterpret_cast<uint8_t*>(buffer), file.gcount());
-        }
-        md5.finalize();
-        return md5.toString();
+    while (file.read(buffer, sizeof(buffer))) {
+        md5.update(reinterpret_cast<uint8_t*>(buffer), file.gcount());
+    }
+    if (file.gcount() > 0) {
+        md5.update(reinterpret_cast<uint8_t*>(buffer), file.gcount());
+    }
+    md5.finalize();
+    return md5.toString();
 }
 
-int main(){
-        Games_cfg games = load_cfg();
-        const string apdt_path = getenv("LOCALAPPDATA");
-        path arc_path = path(apdt_path) / "GameSaves";
-        create_directory(arc_path);
-        for (game_data n : games.games){
-                path pth = arc_path / n.name;
-                create_directory(pth);
-                for (const auto& entry : directory_iterator(n.game_path.c_str())) {
-                    if (entry.is_regular_file()) {
-                        string md5 = get_file_md5(entry.path());
-                        string orig_name = entry.path().filename().string();
-                        path zip_path = pth / (md5 + ".zip");
-                        struct zip_t* zip = zip_open(zip_path.u8string().c_str(), 6, 'w');
-                        zip_entry_open(zip, orig_name.c_str());
-                        zip_entry_fwrite(zip, entry.path().u8string().c_str());
-                        zip_entry_close(zip);
-                        zip_close(zip);
-                    }
-                }
+extern "C" {
+
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+PackagedFile* pack_file_to_memory(const char* file_path) {
+    path p(file_path);
+
+    if (!exists(p) || !is_regular_file(p)) {
+        return nullptr;
+    }
+
+    string md5_str = get_file_md5(p);
+    string orig_name = p.filename().string();
+
+    struct zip_t* zip = zip_stream_open(nullptr, 0, 6, 'w');
+    if (!zip) return nullptr;
+
+    zip_entry_open(zip, orig_name.c_str());
+    zip_entry_fwrite(zip, p.u8string().c_str());
+    zip_entry_close(zip);
+
+    void* out_buf = nullptr;
+    size_t out_size = 0;
+
+    zip_stream_copy(zip, &out_buf, &out_size);
+    zip_stream_close(zip);
+
+    PackagedFile* res = new PackagedFile();
+
+    strncpy(res->md5, md5_str.c_str(), 32);
+    res->md5[32] = '\0';
+
+    res->zip_size = out_size;
+    res->zip_data = static_cast<uint8_t*>(out_buf);
+
+    return res;
+}
+
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+void free_packaged_file(PackagedFile* res) {
+    if (res) {
+        if (res->zip_data) {
+            free(res->zip_data);
         }
+        delete res;
+    }
+}
 }

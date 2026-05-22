@@ -49,18 +49,24 @@ class ConnMang:
     def add_file(self, file_hash, file_bytes):
         with self.getconnection() as conn:
             with conn.cursor() as cur:
-                cur.execute("select id from files where md5_hash = %s;", [file_hash])
+                cur.execute("select md5_hash from files where md5_hash = %s;", [file_hash])
                 row = cur.fetchone()
                 if row:
                     return row[0]
-                req = ("insert into files (md5_hash, file) values (%s, %s) "
-                       "returning id;")
+                req = ("insert into files (md5_hash, file) values (%s, %s);")
                 cur.execute(req, [file_hash, file_bytes])
-                flhs = cur.fetchone()[0]
-                return flhs
+
     def add_link(self, backup_id, file_hash):
         with self.getconnection() as conn:
             with conn.cursor() as cur:
                 req = ("insert into link (backup_id, md5_hash) values (%s, %s) "
                        "on conflict do nothing")
                 cur.execute(req, [backup_id, file_hash])
+
+    def get_all_games_with_paths(self):
+        with self.getconnection() as conn:
+            with conn.cursor() as cur:
+                req = ("SELECT game_id, path FROM paths;")
+                cur.execute(req)
+
+                return cur.fetchall()
