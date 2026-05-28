@@ -70,3 +70,34 @@ class ConnMang:
                 cur.execute(req)
 
                 return cur.fetchall()
+
+    def get_all_games(self):
+        with self.getconnection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, name FROM games ORDER BY name;")
+                return cur.fetchall()
+    def get_game_paths(self, game_id):
+        with self.getconnection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT path FROM paths WHERE game_id = %s;", [game_id])
+                return [row[0] for row in cur.fetchall()]
+
+    def get_backups_by_game(self, game_id):
+        with self.getconnection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, btime FROM backups WHERE game_id = %s ORDER BY btime DESC;", [game_id])
+                return cur.fetchall()
+
+    def get_backup_files(self, backup_id):
+        with self.getconnection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT f.file "
+                            "FROM files f "
+                            "JOIN link l ON f.md5_hash = l.md5_hash "
+                            "WHERE l.backup_id = %s;", [backup_id])
+                return [row[0] for row in cur.fetchall()]
+
+    def delete_single_backup(self, backup_id):
+        with self.getconnection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM backups WHERE id = %s;", [backup_id])

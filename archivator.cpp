@@ -42,10 +42,7 @@ __declspec(dllexport)
 #endif
 PackagedFile* pack_file_to_memory(const char* file_path) {
     path p(file_path);
-
-    if (!exists(p) || !is_regular_file(p)) {
-        return nullptr;
-    }
+    if (!exists(p) || !is_regular_file(p)) return nullptr;
 
     string md5_str = get_file_md5(p);
     string orig_name = p.filename().string();
@@ -64,10 +61,8 @@ PackagedFile* pack_file_to_memory(const char* file_path) {
     zip_stream_close(zip);
 
     PackagedFile* res = new PackagedFile();
-
     strncpy(res->md5, md5_str.c_str(), 32);
     res->md5[32] = '\0';
-
     res->zip_size = out_size;
     res->zip_data = static_cast<uint8_t*>(out_buf);
 
@@ -79,10 +74,37 @@ __declspec(dllexport)
 #endif
 void free_packaged_file(PackagedFile* res) {
     if (res) {
-        if (res->zip_data) {
-            free(res->zip_data);
-        }
+        if (res->zip_data) free(res->zip_data);
         delete res;
     }
+}
+
+// --- Функция разархивации файла из памяти на диск ---
+#ifdef _WIN32
+__declspec(dllexport)
+#endif
+int unpack_file_from_memory(const uint8_t* zip_data, size_t zip_size, const char* dest_dir) {
+    // ИСПРАВЛЕНО: приведение к const char*, как требует библиотека zip
+    struct zip_t* zip = zip_stream_open(reinterpret_cast<const char*>(zip_data), zip_size, 0, 'r');
+    if (!zip) return 0;
+
+    // Открываем первый (и единственный) файл в архиве
+    if (zip_entry_openbyindex(zip, 0) == 0) {
+        string orig_name = zip_entry_name(zip);
+        path out_path = path(dest_dir) / orig_name;
+
+        // Создаем папки, если они были удалены
+        create_directories(out_path.parent_path());
+
+        // Извлекаем поток в файл
+        if (zip_entry_fread(zip, out_path.u8string().c_str()) != 0) {
+            zip_entry_close(zip);
+            zip_stream_close(zip);
+            return 0;
+        }
+        zip_entry_close(zip);
+    }
+    zip_stream_close(zip);
+    return 1;
 }
 }

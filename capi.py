@@ -14,60 +14,75 @@ class PackagedFile(Structure):
         ("zip_size", c_size_t)
     ]
 
-# 1. Получаем абсолютный путь к папке, где лежит capi.py
 BASE_DIR = Path(__file__).parent.resolve()
 dll_path = BASE_DIR / "game_packer.dll"
 
 try:
-    # 2. Говорим Windows искать зависимости (если они есть) в этой же папке
     if hasattr(os, "add_dll_directory"):
         os.add_dll_directory(str(BASE_DIR))
 
-    # 3. Загружаем DLL по строгому абсолютному пути
     packer_lib = ctypes.CDLL(str(dll_path))
 
+    # Настройка типов для упаковки
     packer_lib.pack_file_to_memory.argtypes = [c_char_p]
     packer_lib.pack_file_to_memory.restype = POINTER(PackagedFile)
     packer_lib.free_packaged_file.argtypes = [POINTER(PackagedFile)]
     packer_lib.free_packaged_file.restype = None
+
+    # Настройка типов для РАЗАРХИВАЦИИ
+    packer_lib.unpack_file_from_memory.argtypes = [POINTER(ctypes.c_ubyte), c_size_t, c_char_p]
+    packer_lib.unpack_file_from_memory.restype = ctypes.c_int
+
 except Exception as e:
     print("!!! ОШИБКА ЗАГРУЗКИ DLL:")
     import traceback
     traceback.print_exc()
     packer_lib = None
-def do_games_backup():
-    if not packer_lib:
-        return 1
 
-    games = db.get_all_games_with_paths()
+def do_single_game_backup(game_id, game_path):
+    """Создает резервную копию одной выбранной игры."""
+    if not packer_lib: return False
+    path_obj = Path(game_path)
+    if not path_obj.exists(): return False
 
-    for game_id, game_path in games:
-        path_obj = Path(game_path)
-        if not path_obj.exists():
-            continue
+    backup_id = db.add_backup(game_id)
+    success = False
 
-        backup_id = db.add_backup(game_id)
+    for file in path_obj.iterdir():
+        if file.is_file():
+            c_file_path = str(file).encode('utf-8')
+            res_ptr = packer_lib.pack_file_to_memory(c_file_path)
 
-        for file in path_obj.iterdir():
-            if file.is_file():
-                c_file_path = str(file).encode('utf-8')
-                res_ptr = packer_lib.pack_file_to_memory(c_file_path)
+            if not res_ptr: continue
 
-                if not res_ptr:
-                    continue
+            res = res_ptr.contents
+            file_hash = res.md5.decode('utf-8')
+            zip_bytes = bytes(res.zip_data[:res.zip_size])
 
-                res = res_ptr.contents
-                file_hash = res.md5.decode('utf-8')
-                zip_bytes = bytes(res.zip_data[:res.zip_size])
+            db.add_file(file_hash, zip_bytes)
+            db.add_link(backup_id, file_hash)
+            packer_lib.free_packaged_file(res_ptr)
+            success = True
 
-                db.add_file(file_hash, zip_bytes)
-                db.add_link(backup_id, file_hash)
+    return success
 
-                packer_lib.free_packaged_file(res_ptr)
+def restore_game_backup(backup_id, dest_dir):
+    """Загружает бинарники архивов из БД и распаковывает их через DLL в целевую папку."""
+    if not packer_lib: return False
 
+    files_bytes = db.get_backup_files(backup_id)
+    if not files_bytes: return False
 
-try:
-    do_games_backup()
-    print("Backup process completed successfully!")
-finally:
-    db.close()
+    # Гарантируем наличие папки назначения
+    Path(dest_dir).mkdir(parents=True, exist_ok=True)
+
+    for blob in files_bytes:
+        size = len(blob)
+        # Превращаем bytes в массив ctypes unsigned char
+        c_blob = (ctypes.c_ubyte * size).from_buffer_copy(blob)
+        c_dest = str(dest_dir).encode('utf-8')
+
+        # Вызов распаковщика из DLL
+        packer_lib.unpack_file_from_memory(c_blob, size, c_dest)
+
+    return True

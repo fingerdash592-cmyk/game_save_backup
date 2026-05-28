@@ -1,6 +1,5 @@
 pyyaml
 pathlib
-pydantic
 psycopg
 psycopg[binary]
 psycopg_pool
