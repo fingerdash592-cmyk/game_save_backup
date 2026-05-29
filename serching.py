@@ -54,11 +54,8 @@ def game_del():
     print("Enter the name of the game you want to delete")
     name = input()
 
-    # ИСПРАВЛЕНО: Теперь удаляем из БД одним SQL-запросом через сессию пула
     with db.getconnection() as conn:
         with conn.cursor() as cur:
-            # Благодаря ON DELETE CASCADE в структуре таблиц,
-            # удаление игры автоматически сотрет все её пути и бэкапы!
             cur.execute("DELETE FROM games WHERE lower(name) = lower(%s) RETURNING id;", [name])
             deleted_row = cur.fetchone()
 

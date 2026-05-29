@@ -3,3 +3,4 @@ pathlib
 psycopg
 psycopg[binary]
 psycopg_pool
+tkinter
