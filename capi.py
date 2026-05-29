@@ -22,14 +22,11 @@ try:
         os.add_dll_directory(str(BASE_DIR))
 
     packer_lib = ctypes.CDLL(str(dll_path))
-
-    # Настройка типов для упаковки
     packer_lib.pack_file_to_memory.argtypes = [c_char_p]
     packer_lib.pack_file_to_memory.restype = POINTER(PackagedFile)
     packer_lib.free_packaged_file.argtypes = [POINTER(PackagedFile)]
     packer_lib.free_packaged_file.restype = None
 
-    # Настройка типов для РАЗАРХИВАЦИИ
     packer_lib.unpack_file_from_memory.argtypes = [POINTER(ctypes.c_ubyte), c_size_t, c_char_p]
     packer_lib.unpack_file_from_memory.restype = ctypes.c_int
 
@@ -40,7 +37,6 @@ except Exception as e:
     packer_lib = None
 
 def do_single_game_backup(game_id, game_path):
-    """Создает резервную копию одной выбранной игры."""
     if not packer_lib: return False
     path_obj = Path(game_path)
     if not path_obj.exists(): return False
@@ -67,22 +63,17 @@ def do_single_game_backup(game_id, game_path):
     return success
 
 def restore_game_backup(backup_id, dest_dir):
-    """Загружает бинарники архивов из БД и распаковывает их через DLL в целевую папку."""
     if not packer_lib: return False
 
     files_bytes = db.get_backup_files(backup_id)
     if not files_bytes: return False
 
-    # Гарантируем наличие папки назначения
     Path(dest_dir).mkdir(parents=True, exist_ok=True)
 
     for blob in files_bytes:
         size = len(blob)
-        # Превращаем bytes в массив ctypes unsigned char
         c_blob = (ctypes.c_ubyte * size).from_buffer_copy(blob)
         c_dest = str(dest_dir).encode('utf-8')
-
-        # Вызов распаковщика из DLL
         packer_lib.unpack_file_from_memory(c_blob, size, c_dest)
 
     return True

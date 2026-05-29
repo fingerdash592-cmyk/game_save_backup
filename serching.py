@@ -22,11 +22,10 @@ def game_name(path):
 
 
 def game_init():
-    print("Сканирование ПК на наличие сохранений...")
+    print("Searching save files")
     x = list(home_path.glob("**/*.sav"))
 
     for i in x:
-        # Проверяем условие с .vdf, как у тебя и было
         if not list(i.parent.glob("*.vdf")):
             g_path = str(i.parent)
             g_name = game_name(i.parent)
@@ -34,7 +33,7 @@ def game_init():
             game_id = db.add_game(g_name)
             db.add_path(game_id, g_path)
 
-    print("Сканирование завершено. База данных обновлена.")
+    print("Scanning successfully complete")
 
 
 def game_add():
@@ -46,8 +45,6 @@ def game_add():
 
     g_path = str(path)
     g_name = game_name(path)
-
-    # ИСПРАВЛЕНО: Сохраняем в базу данных вместо JSON
     game_id = db.add_game(g_name)
     db.add_path(game_id, g_path)
     print(f"Game '{g_name}' successfully added/updated in Database.")
@@ -71,21 +68,3 @@ def game_del():
                 print("Game wasn't found in Database")
 
 
-def menu():
-    print("Hello in game save backup!")
-    try:
-        while(True):
-            print("\nChoose your action\n1. Search and add the games from your PC\n2. Add your game\n3. Delete saved game\n4. Close")
-            inp = input()
-            if inp == "1":
-                game_init()
-            elif inp == "2":
-                game_add()
-            elif inp == "3":
-                game_del()
-            elif inp == "4":
-                break
-    finally:
-        db.close()
-
-menu()

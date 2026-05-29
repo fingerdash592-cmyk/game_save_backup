@@ -9,7 +9,6 @@ from db_connect import ConnMang
 import capi
 
 class BackupManagerWindow(tk.Toplevel):
-    """Второе окно: открывается для управления конкретной игрой."""
     def __init__(self, parent, game_id, game_name):
         super().__init__(parent)
         self.parent = parent
@@ -121,10 +120,9 @@ class BackupManagerWindow(tk.Toplevel):
 
 
 class GameBackupApp(tk.Tk):
-    """Главное окно приложения: Список игр + Системный лог."""
     def __init__(self):
         super().__init__()
-        self.title("SaveVault — Менеджер сохранений игр")
+        self.title("Менеджер сохранений игр")
         self.geometry("900x550")
         self.minsize(800, 450)
 
@@ -151,17 +149,12 @@ class GameBackupApp(tk.Tk):
         self.style.map("Accent.TButton", background=[("active", "#27ae60")])
 
     def build_ui(self):
-        # Шапка
         header = ttk.Frame(self, padding=(15, 10))
         header.pack(fill=tk.X)
-        ttk.Label(header, text="🎮 SaveVault c-API Manager", font=("Segoe UI", 16, "bold"), foreground="#2c3e50").pack(side=tk.LEFT)
-        ttk.Label(header, text="[ Двухоконный режим ]", font=("Segoe UI", 10, "italic"), foreground="#7f8c8d").pack(side=tk.LEFT, padx=10, ipady=5)
 
-        # Рабочая область списка игр
-        main_container = ttk.LabelFrame(self, text=" Отслеживаемые игры (Двойной клик для управления бэкапами) ", padding=10)
+        main_container = ttk.LabelFrame(self, text=" Отслеживаемые игры", padding=10)
         main_container.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
 
-        # ИСПРАВЛЕНО: Создаем контейнер для кнопок справа до упаковки таблицы!
         actions = ttk.Frame(main_container, padding=(10, 0, 0, 0))
         actions.pack(side=tk.RIGHT, fill=tk.Y)
 
@@ -176,11 +169,9 @@ class GameBackupApp(tk.Tk):
         self.btn_delete_game.pack(fill=tk.X, pady=3)
         self.btn_delete_game.state(["disabled"])
 
-        # Скроллбар таблицы (будет слева от блока кнопок)
         scroll = ttk.Scrollbar(main_container, orient=tk.VERTICAL)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Таблица игр (займет всё оставшееся пространство слева)
         self.game_tree = ttk.Treeview(main_container, columns=("id", "name"), show="headings", selectmode="browse", yscrollcommand=scroll.set)
         self.game_tree.heading("id", text="ID")
         self.game_tree.heading("name", text="Название игры")
@@ -193,7 +184,6 @@ class GameBackupApp(tk.Tk):
         self.game_tree.bind("<Double-1>", self.open_backup_manager)
         self.game_tree.bind("<<TreeviewSelect>>", lambda e: self.btn_manage.state(["!disabled"]) or self.btn_delete_game.state(["!disabled"]))
 
-        # Консоль логов внизу главного окна
         log_frame = ttk.LabelFrame(self, text=" Журнал событий (Лог работы системы) ", padding=5)
         log_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=10)
 
@@ -238,6 +228,7 @@ class GameBackupApp(tk.Tk):
     def scan_pc(self):
         self.log("Запущено сканирование ПК на наличие сохранений (*.sav)...")
         home_path = Path.home()
+        dct = {}
         try:
             found_saves = list(home_path.glob("**/*.sav"))
             count = 0
@@ -247,7 +238,9 @@ class GameBackupApp(tk.Tk):
                     g_name = self.parse_game_name(i.parent)
                     game_id = self.db.add_game(g_name)
                     self.db.add_path(game_id, g_path)
-                    count += 1
+                    if g_path not in dct.keys():
+                        dct[g_path] = 1
+                        count += 1
                     self.log(f"Найдено: '{g_name}' -> {g_path}")
             self.log(f"Сканирование завершено. Добавлено/обновлено игр: {count}")
             messagebox.showinfo("Сканирование", f"Успешно обработано игр: {count}")
